@@ -7,13 +7,16 @@ import (
 	"strconv"
 )
 
+// TODO вынести resultHistory из глобальной зоны видимости
+var resultHistory []int
+
 func main() {
 	mux := &http.ServeMux{}
 	mux.HandleFunc("/fib/{num}", indexHandler)
 	http.ListenAndServe(":8080", mux)
 }
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	var resultHistory []int
 	fibIter, err := strconv.Atoi(r.PathValue("num"))
 	if errorMessage := validate(err, fibIter); errorMessage != nil {
 		fmt.Fprint(w, errorMessage)
