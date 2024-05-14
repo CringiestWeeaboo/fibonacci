@@ -7,25 +7,26 @@ import (
 	"strconv"
 )
 
-// TODO вынести resultHistory из глобальной зоны видимости
-var resultHistory []int
-
 func main() {
+	var resultHistory []int
 	mux := &http.ServeMux{}
-	mux.HandleFunc("/fib/{num}", indexHandler)
+	mux.HandleFunc("/fib/{num}", func(w http.ResponseWriter, r *http.Request) {
+		indexHandler(w, r, &resultHistory)
+	})
 	http.ListenAndServe(":8080", mux)
+
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
+func indexHandler(w http.ResponseWriter, r *http.Request, resultHistory *[]int) {
 	fibIter, err := strconv.Atoi(r.PathValue("num"))
 	if errorMessage := validate(err, fibIter); errorMessage != nil {
 		fmt.Fprint(w, errorMessage)
 		return
 	}
 	fmt.Fprint(w, "Сумма: "+strconv.Itoa(fibonacci(fibIter))+"\n")
-	fmt.Fprint(w, createHistoryMessage(resultHistory))
-	resultHistory = append(resultHistory, fibonacci(fibIter))
-	writeHistoryToFile(createHistory(resultHistory))
+	fmt.Fprint(w, createHistoryMessage(*resultHistory))
+	*resultHistory = append(*resultHistory, fibonacci(fibIter))
+	writeHistoryToFile(createHistory(*resultHistory))
 	queryToDatabase(fibIter, fibonacci(fibIter), createDatabaseAndTable())
 }
 
