@@ -10,3 +10,4 @@
 *.idea
 *.env
 history.txt
+fibonacci.db

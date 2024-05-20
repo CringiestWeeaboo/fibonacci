@@ -7,27 +7,35 @@ import (
 	"strconv"
 )
 
+type handler struct {
+	fibHistory []int
+}
+
+func (h *handler) indexHandler(w http.ResponseWriter, r *http.Request, fibHistory *[]int) {
+	i, err := strconv.Atoi(r.PathValue("num"))
+	if err != nil {
+		fmt.Fprint(w, err)
+		return
+	}
+	if err := validate(i); err != nil {
+		fmt.Fprint(w, err)
+		return
+	}
+	fmt.Fprint(w, "Сумма: "+strconv.Itoa(fibonacci(i))+"\n")
+	fmt.Fprint(w, createHistoryMessage(*fibHistory))
+	*fibHistory = append(*fibHistory, fibonacci(i))
+	writeHistoryToFile(createHistory(*fibHistory))
+	queryToDatabase(i, fibonacci(i), createDatabaseAndTable())
+}
+
 func main() {
-	var resultHistory []int
 	mux := &http.ServeMux{}
+	h := &handler{}
 	mux.HandleFunc("/fib/{num}", func(w http.ResponseWriter, r *http.Request) {
-		indexHandler(w, r, &resultHistory)
+		h.indexHandler(w, r, &h.fibHistory)
 	})
 	http.ListenAndServe(":8080", mux)
 
-}
-
-func indexHandler(w http.ResponseWriter, r *http.Request, resultHistory *[]int) {
-	fibIter, err := strconv.Atoi(r.PathValue("num"))
-	if errorMessage := validate(err, fibIter); errorMessage != nil {
-		fmt.Fprint(w, errorMessage)
-		return
-	}
-	fmt.Fprint(w, "Сумма: "+strconv.Itoa(fibonacci(fibIter))+"\n")
-	fmt.Fprint(w, createHistoryMessage(*resultHistory))
-	*resultHistory = append(*resultHistory, fibonacci(fibIter))
-	writeHistoryToFile(createHistory(*resultHistory))
-	queryToDatabase(fibIter, fibonacci(fibIter), createDatabaseAndTable())
 }
 
 func createHistoryMessage(resultHistory []int) string {
@@ -41,10 +49,7 @@ func createHistoryMessage(resultHistory []int) string {
 	return historyMessage
 }
 
-func validate(err error, fibIterNum int) error {
-	if err != nil {
-		return errors.New("Ошибка! Введите число в адресной строке после 'fib/'")
-	}
+func validate(fibIterNum int) error {
 	if fibIterNum >= 45 || fibIterNum <= 0 {
 		return errors.New("Ошибка! Введите число в адресной строке после 'fib/' меньше 45 и больше 0")
 	}
