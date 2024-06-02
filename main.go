@@ -1,41 +1,63 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 )
 
 type handler struct {
 	fibHistory []int
+	db         *sql.DB
+	mux        http.ServeMux
+	fileWriter FileWriter
 }
 
-func (h *handler) indexHandler(w http.ResponseWriter, r *http.Request, fibHistory *[]int) {
+func (h *handler) handle(w http.ResponseWriter, r *http.Request, f fileWriter) {
 	i, err := strconv.Atoi(r.PathValue("num"))
 	if err != nil {
 		fmt.Fprint(w, err)
 		return
 	}
+
 	if err := validate(i); err != nil {
 		fmt.Fprint(w, err)
 		return
 	}
+	// TODO: вынести работу с файлами в интерфейс.
 	fmt.Fprint(w, "Сумма: "+strconv.Itoa(fibonacci(i))+"\n")
-	fmt.Fprint(w, createHistoryMessage(*fibHistory))
-	*fibHistory = append(*fibHistory, fibonacci(i))
-	writeHistoryToFile(createHistory(*fibHistory))
-	queryToDatabase(i, fibonacci(i), createDatabaseAndTable())
+	fmt.Fprint(w, createHistoryMessage(h.fibHistory))
+	h.fibHistory = append(h.fibHistory, fibonacci(i))
+	f.writeHistoryToFile(f.createHistory(h.fibHistory))
+	writeToDatabase(i, fibonacci(i), h.db)
 }
 
 func main() {
-	mux := &http.ServeMux{}
-	h := &handler{}
-	mux.HandleFunc("/fib/{num}", func(w http.ResponseWriter, r *http.Request) {
-		h.indexHandler(w, r, &h.fibHistory)
-	})
-	http.ListenAndServe(":8080", mux)
+	var (
+		h   = &handler{}
+		f   fileWriter
+		err error
+	)
 
+	h.fileWriter = NewFileWriter("history.txt")
+	h.db, err = initDb("fibonacci.db")
+	if err != nil {
+		log.Fatalf("Невозможно открыть базу данных: %v", err)
+	}
+	defer h.db.Close()
+
+	err = h.createTable()
+	if err != nil {
+		log.Fatalf("Невозможно создать таблицу: %v", err)
+	}
+
+	h.mux.HandleFunc("/fib/{num}", func(w http.ResponseWriter, r *http.Request) {
+		h.handle(w, r, f)
+	})
+	http.ListenAndServe(":8080", &h.mux)
 }
 
 func createHistoryMessage(resultHistory []int) string {
